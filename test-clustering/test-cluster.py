@@ -93,19 +93,6 @@ def compute_distances_to_centroids(args):
     return [wasserstein_distance(d, centroid) for centroid in centroids]
 
 def fdtw_clustering(series):
-    """
-    n = len(series)
-    distance_matrix = np.zeros((n, n))
-
-    # Parallel distance computation
-    results = Parallel(n_jobs=-1)(delayed(compute_distance)(i, j, series[i], series[j]) 
-                                for i in range(n) for j in range(i+1, n))
-
-    # Fill the distance matrix with the results
-    for i, j, distance in results:
-        distance_matrix[i, j] = distance
-        distance_matrix[j, i] = distance
-    """
 
     n = len(series)
     distance_matrix = np.zeros((n, n))
@@ -113,6 +100,9 @@ def fdtw_clustering(series):
     for i in range(n):
         for j in range(i+1, n):
             #perfrom time warping
+            #check series for nan values
+            series[i] = series[i].ffill().bfill()
+            series[j] = series[j].ffill().bfill()
 
             distance, _ = fastdtw([series[i]], [series[j]], dist=euclidean)
             distance_matrix[i, j] = distance
@@ -173,8 +163,10 @@ def main():
     for result in results:
          if x<10:
             price_series[x] = result['price'].ffill().bfill()
+            #check series for nan values
+          
             #fill volume series with bid ask ratio for all 10 levels
-            volume_series[x] = (result['b_size_0'] / result['a_size_0']).ffill().bfill().fillna(0)
+            volume_series[x] = (result['b_size_0'] / result['a_size_0']).ffill().bfill()
             #combine both volumen and price into one series such that a data
             #point is a tuple of (price, volume)
             #vp_series[x] = (price_series[x], volume_series[x])
