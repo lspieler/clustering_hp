@@ -159,7 +159,7 @@ def main():
     x = 0
     for result in results:
          if x<10:
-            price_series[x] = result['price'].ffill().bfill().fillna(0)
+            price_series[x] = (result['price']/result['price'].iloc[0]).ffill().bfill()
             #check series for nan values
           
             #fill volume series with bid ask ratio for all 10 levels
