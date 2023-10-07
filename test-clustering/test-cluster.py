@@ -155,6 +155,10 @@ def main():
 
     with concurrent.futures.ProcessPoolExecutor() as executor:
         results = list(executor.map(get_data, *zip(*args))) 
+    
+    executor.shutdown(wait=True)
+
+
 
     x = 0
     for result in results:
