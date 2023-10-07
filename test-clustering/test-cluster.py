@@ -100,9 +100,6 @@ def fdtw_clustering(series):
     for i in range(n):
         for j in range(i+1, n):
             #perfrom time warping
-            #check series for nan values
-            series[i] = series[i].ffill().bfill()
-            series[j] = series[j].ffill().bfill()
 
             distance, _ = fastdtw([series[i]], [series[j]], dist=euclidean)
             distance_matrix[i, j] = distance
@@ -162,11 +159,11 @@ def main():
     x = 0
     for result in results:
          if x<10:
-            price_series[x] = result['price'].ffill().bfill()
+            price_series[x] = result['price'].ffill().bfill().fillna(0)
             #check series for nan values
           
             #fill volume series with bid ask ratio for all 10 levels
-            volume_series[x] = (result['b_size_0'] / result['a_size_0']).ffill().bfill()
+            volume_series[x] = (result['b_size_0'] / result['a_size_0']).ffill().bfill().fillna(0)
             #combine both volumen and price into one series such that a data
             #point is a tuple of (price, volume)
             #vp_series[x] = (price_series[x], volume_series[x])
