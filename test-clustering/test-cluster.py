@@ -100,7 +100,7 @@ def fdtw_clustering(series):
     for i in range(n):
         for j in range(i+1, n):
             #perfrom time warping
-
+            print(series[i], series[j])
             distance, _ = fastdtw([series[i]], [series[j]], dist=euclidean)
             distance_matrix[i, j] = distance
             distance_matrix[j, i] = distance
@@ -168,7 +168,7 @@ def main():
             #point is a tuple of (price, volume)
             #vp_series[x] = (price_series[x], volume_series[x])
             x +=1
-
+    
     #print(vp_series[-1].shape)
     
     price_distance_matrix = fdtw_clustering(price_series)
