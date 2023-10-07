@@ -174,7 +174,7 @@ def main():
          if x<10:
             price_series[x] = result['price'].ffill().bfill()
             #fill volume series with bid ask ratio for all 10 levels
-            volume_series[x] = (result['b_size_0'] / result['a_size_0']).ffill().bfill()
+            volume_series[x] = (result['b_size_0'] / result['a_size_0']).ffill().bfill().fillna(0)
             #combine both volumen and price into one series such that a data
             #point is a tuple of (price, volume)
             #vp_series[x] = (price_series[x], volume_series[x])
@@ -196,14 +196,14 @@ def main():
     plt.title('Hierarchical Clustering of Time Series')
     plt.xlabel('Time Series')
     plt.ylabel('Distance')
-    plt.show()
+    
 
     Z1 = linkage(condensed_D2, 'ward')
     dendrogram(Z)
     plt.title('Hierarchical Clustering of Time Series')
     plt.xlabel('Time Series')
     plt.ylabel('Distance')
-    plt.show()
+    
 
     
     """
