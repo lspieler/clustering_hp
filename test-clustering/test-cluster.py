@@ -127,13 +127,15 @@ def main():
     #restrict msgs and orders to 2 files
     msgs = msgs[0:5]
     orders = orders[0:5]
+    print(msgs)
+    print(orders)
     price_series = np.empty((5,23400))
     volume_series = np.empty((5,23400))
     vp_series = np.empty((5,23400))
 
     profiler = cProfile.Profile()
 
-    """
+    series = np.empty((10,23400))
     #Convert all orderbook and message files to all_series format
     for x in range(10):
         orderbook_file = orders[x]
@@ -142,7 +144,7 @@ def main():
         #replace all nan values with interpolated values
         df = df.interpolate()
         series[x] = df['price']
-    """
+    
     
 
     """
