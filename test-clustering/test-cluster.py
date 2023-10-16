@@ -7,6 +7,7 @@ from sklearn.mixture import GaussianMixture
 from concurrent.futures import ProcessPoolExecutor
 from get_data import get_data
 import glob
+from ffnn import feed_foward_nn
 from joblib import Parallel, delayed
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
@@ -17,7 +18,16 @@ from multiprocessing import freeze_support
 import cProfile
 import ot
 from scipy.stats import gaussian_kde
+from scipy import signal
 import getopt, sys
+import numpy as np
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.neural_network import MLPRegressor
+from sklearn.metrics import mean_squared_error
+from sklearn.datasets import make_regression
+from sklearn.model_selection import train_test_split
+from lstm import run_lstm
+
 
 
 def find_medoid(cluster):
@@ -30,6 +40,7 @@ def find_medoid(cluster):
         if current_distance < min_distance:
             min_distance = current_distance
             medoid = s1
+
     return medoid
 
 def assign_to_cluster(new_series, cluster_medoids):
@@ -92,6 +103,7 @@ def compute_distances_to_centroids(args):
     d, centroids = args
     return [wasserstein_distance(d, centroid) for centroid in centroids]
 
+
 def fdtw_clustering(series):
 
     n = len(series)
@@ -100,10 +112,11 @@ def fdtw_clustering(series):
     for i in range(n):
         for j in range(i+1, n):
             #perfrom time warping
-            print(series[i], series[j])
             distance, _ = fastdtw([series[i]], [series[j]], dist=euclidean)
             distance_matrix[i, j] = distance
             distance_matrix[j, i] = distance
+            #fourier distance
+            #fft_distance(series[i], series[j])
     
     return distance_matrix
 
@@ -120,22 +133,26 @@ def compute_kde(series):
 
 
 
-def main():
+def cluster(freq_per_second, num_clusters, poriton):
 
     msgs = sorted(glob.glob('./data/monthly/AAPL_2023-04-*_message_10.csv'))
     orders = sorted(glob.glob('./data/monthly/AAPL_2023-04-*_orderbook_10.csv'))
-    #restrict msgs and orders to 2 files
-    msgs = msgs[0:5]
-    orders = orders[0:5]
-    print(msgs)
-    print(orders)
-    price_series = np.empty((5,23400))
-    volume_series = np.empty((5,23400))
-    vp_series = np.empty((5,23400))
+    #get data from last file 
+    test = get_data(0, 10000000, freq_per_second=freq_per_second, directory = "", orderbook_filename = orders[-1], message_filename = msgs[-1])
+    #replace all nan values with interpolated values
+    test = test.bfill().ffill()
+    test_price =((test['price']/test['price'].iloc[0])-1).ffill().bfill()*100
+    data_length = len(test_price)
+    num_files = len(msgs)
+    data_portion = int(data_length * poriton)
+    #exclude last day from msgs and orders
+    msgs = msgs
+    orders = orders
+    price_series = np.empty((num_files,data_length))
+    volume_series = np.empty((num_files, data_length))
+    vp_series = np.empty((num_files,data_length))
 
-    profiler = cProfile.Profile()
-
-    series = np.empty((10,23400))
+    """
     #Convert all orderbook and message files to all_series format
     for x in range(10):
         orderbook_file = orders[x]
@@ -144,36 +161,29 @@ def main():
         #replace all nan values with interpolated values
         df = df.interpolate()
         series[x] = df['price']
-    
+    """
     
 
     """
     df = get_data(0, 10000000, freq_per_second=1, directory = "", orderbook_filename = orderbook_file, message_filename = msg_file)
     #replace all nan values with interpolated values
     test_series = df['price'].ffill().bfill()"""
-        
     
-    args = [(0, 10000000, 1, "", order, msg) for order, msg in zip(orders, msgs)]
+    args = [(0, 10000000, freq_per_second, "", order, msg) for order, msg in zip(orders, msgs)]
 
     with concurrent.futures.ProcessPoolExecutor() as executor:
         results = list(executor.map(get_data, *zip(*args))) 
     
     executor.shutdown(wait=True)
 
-
-
-    x = 0
+    x= 0
     for result in results:
-         if x<10:
-            price_series[x] = (result['price']/result['price'].iloc[0]).ffill().bfill()
-            #check series for nan values
-          
-            #fill volume series with bid ask ratio for all 10 levels
-            volume_series[x] = (result['b_size_0'] / result['a_size_0']).ffill().bfill().fillna(0)
-            #combine both volumen and price into one series such that a data
-            #point is a tuple of (price, volume)
-            #vp_series[x] = (price_series[x], volume_series[x])
-            x +=1
+        price_series[x] = ((result['price']/result['price'].iloc[0])-1).ffill().bfill()*100
+        volume_series[x] = ((result['b_size_0'] / result['a_size_0'])-1).ffill().bfill().fillna(0)*100
+        #combine both volumen and price into one series such that a data
+        #point is a tuple of (price, volume)
+        #vp_series[x] = (price_series[x], volume_series[x])
+        x += 1
     
     #print(vp_series[-1].shape)
     
@@ -186,19 +196,28 @@ def main():
     condensed_D2 = squareform(volume_distance_matrix)
     #condensed_D3 = squareform(vp_distance_matrix)
     # Perform hierarchical clustering
+    
     Z = linkage(condensed_D1, 'ward')
+    """
     dendrogram(Z)
     plt.title('Hierarchical Clustering of Time Series')
     plt.xlabel('Time Series')
     plt.ylabel('Distance')
-    
+    #output dendrogram to png file
+    plt.savefig('price_dendrogram.png')
 
     Z1 = linkage(condensed_D2, 'ward')
-    dendrogram(Z)
+ 
+
+
+    dendrogram(Z1)
     plt.title('Hierarchical Clustering of Time Series')
     plt.xlabel('Time Series')
     plt.ylabel('Distance')
-    
+    #output dendrogram to png file
+    plt.savefig('volume_dendrogram.png')
+    """
+   
 
     
     """
@@ -211,32 +230,39 @@ def main():
     """
 
     # Assuming k clusters
-    labels = fcluster(Z, t=3, criterion='maxclust')
+    labels = fcluster(Z, t=num_clusters, criterion='maxclust')
     print(labels)
+
     # construct  of clusters from lables
     clusters = []
-    for i in range(3):
+    for i in range(num_clusters):
         clusters.append([])
 
     for i in range(len(labels)):
             clusters[labels[i]-1].append(price_series[i])
     
     # Find medoid of each cluster
-    medoids = np.empty((3,23400))
+    medoids = np.empty((num_clusters,data_length))
     for x in range(len(clusters)):
         medoids[x] = find_medoid(clusters[x])
-    print(medoids)
-    #Find what cluster the test_series belongs to
-   
-
-    #assign cluster to test_series
-    #assigned_cluster = assign_to_cluster(test_series, medoids)
-
-    #print(assigned_cluster)
-
-
-
     
+    # find cluster of test series
+    test_cluster = assign_to_cluster(test_price, medoids)
+
+    # halve all price series and save to new variable
+    X = np.empty((len(msgs),data_portion))
+    for x in range(len(price_series)):
+        X[x] = price_series[x][0:data_portion]
+    
+    #get final price of each day as the y
+    y = np.empty(len(msgs))
+    for x in range(len(price_series)):
+        y[x] = price_series[x][-1]
+
+    run_lstm(X, y, test_price, data_portion)
+    #feed_foward_nn(X, y, test_price, data_portion, clusters, test_cluster)
+
+   
     """
     gmm = GaussianMixture(n_components=5) 
     gmm.fit(price_series)
@@ -248,10 +274,16 @@ def main():
     print(probs)
     """
 
-
 if __name__ == '__main__':
     #take command line arguments for start, end and freq_per_second
-  
+    if len(sys.argv) != 4:
+        print("Usage: python test-cluster.py start end num_clusters freq_per_second poriton")
+        sys.exit(1)
+    freq_per_second = str(sys.argv[1])
+    num_clusters = int(sys.argv[2])
+    poriton = float(sys.argv[3])
+    
+    
     freeze_support()  
-    main()
+    cluster(freq_per_second, num_clusters, poriton)
     

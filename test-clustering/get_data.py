@@ -12,11 +12,12 @@ def _read_csv(start, end, freq_per_second, orderbook_filename, message_filename)
         rows = None
     df = pd.read_csv(f'{orderbook_filename}', na_values=['nan'], skiprows=start, nrows=rows, header=None)
     times = pd.read_csv(f'{message_filename}', na_values=['nan'], skiprows=start, nrows=rows, usecols=[0], header=None).squeeze()
+    # print lenght of times and df 
     df.set_index(times, inplace=True)
     # add date from filename to index and convert to datetime
     df.index = pd.to_datetime(df.index, unit='s')
     #resample index to freq_per_second
-    df = df.resample(f'{freq_per_second}s').mean()
+    df = df.resample(f'{freq_per_second}').mean()
     
     df.index.name = 'time'
     df.columns = ['a_price_0', 'a_size_0', 'b_price_0', 'b_size_0', 'a_price_1', 'a_size_1', 'b_price_1', 'b_size_1', 
