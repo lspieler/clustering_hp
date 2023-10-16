@@ -4,11 +4,13 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
 from keras.layers import Dense, LSTM
+import tensorflow as tf
 
 
 def run_lstm(X, y, test_price, data_portion, layer1 = 150, layer2=150, batch = 50, epoch =100):
-    print(X.shape)
-    print(y.shape)
+    
+    strategy = tf.distribute.MirroredStrategy()
+
     X_train = X[:-1]
     y_train = y[:-1]
     scaler = MinMaxScaler()
@@ -26,6 +28,8 @@ def run_lstm(X, y, test_price, data_portion, layer1 = 150, layer2=150, batch = 5
     model.compile(optimizer='adam', loss='mean_squared_error')
 
     # 3. Training the LSTM
+
+
     model.fit(scaled_data, y_train, epochs=epoch, batch_size=batch)
 
     # 4. Making Predictionscç
