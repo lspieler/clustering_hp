@@ -163,3 +163,4 @@ cython_debug/
 orderbook_*
 message_*
 data*
+slurm-*

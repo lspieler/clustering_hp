@@ -133,10 +133,12 @@ def compute_kde(series):
 
 
 
-def cluster(freq_per_second, num_clusters, poriton):
+def cluster(freq_per_second, num_clusters, poriton, learner, layers= 100):
 
-    msgs = sorted(glob.glob('./data/monthly/AAPL_2023-04-*_message_10.csv'))
-    orders = sorted(glob.glob('./data/monthly/AAPL_2023-04-*_orderbook_10.csv'))
+    msgs = sorted(glob.glob('/mnt/research/d.byrd/students/lspieler/monthly/AAPL_2023-04-*_message_10.csv'))
+    orders = sorted(glob.glob('/mnt/research/d.byrd/students/lspieler/monthly/AAPL_2023-04-*_orderbook_10.csv'))
+    print(msgs)
+    print(orders)
     #get data from last file 
     test = get_data(0, 10000000, freq_per_second=freq_per_second, directory = "", orderbook_filename = orders[-1], message_filename = msgs[-1])
     #replace all nan values with interpolated values
@@ -259,8 +261,10 @@ def cluster(freq_per_second, num_clusters, poriton):
     for x in range(len(price_series)):
         y[x] = price_series[x][-1]
 
-    run_lstm(X, y, test_price, data_portion)
-    #feed_foward_nn(X, y, test_price, data_portion, clusters, test_cluster)
+    if learner == "lstm":
+        run_lstm(X, y, test_price, data_portion, layers, layers, 50, 100)
+    elif learner == "ffnn":
+        feed_foward_nn(X, y, test_price, data_portion, clusters, test_cluster)
 
    
     """
@@ -276,14 +280,16 @@ def cluster(freq_per_second, num_clusters, poriton):
 
 if __name__ == '__main__':
     #take command line arguments for start, end and freq_per_second
-    if len(sys.argv) != 4:
+    if len(sys.argv) != 6:
         print("Usage: python test-cluster.py start end num_clusters freq_per_second poriton")
         sys.exit(1)
     freq_per_second = str(sys.argv[1])
     num_clusters = int(sys.argv[2])
     poriton = float(sys.argv[3])
+    learner = str(sys.argv[4])
+    layers = int(sys.argv[5])
     
     
     freeze_support()  
-    cluster(freq_per_second, num_clusters, poriton)
+    cluster(freq_per_second, num_clusters, poriton, learner, layers)
     
