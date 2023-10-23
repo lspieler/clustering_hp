@@ -41,4 +41,4 @@ def fft_distance(ts1, ts2, detrend = True, dc_component = True, phase = True, di
         distance = np.linalg.norm(corr1 - corr2)
 
     
-    return distance
+    return abs(distance)

@@ -7,13 +7,13 @@ from sklearn.metrics import mean_squared_error
 
 
 
-def feed_foward_nn(X, y, test_price, data_portion, clusters, test_cluster):
+def feed_foward_nn(X, y, test_price, data_portion, clusters, test_cluster, layers):
     # Model Definition and Training
     #create array for test mse and train mse
-    test_mse_arr = np.empty(50)
-    mse_arr = np.empty(50)
-    for x in range(50):
-        model = MLPRegressor(hidden_layer_sizes=(30, 30), max_iter=x+1,).fit(X, y)
+    test_mse_arr = np.empty(100)
+    mse_arr = np.empty(100)
+    for x in range(100):
+        model = MLPRegressor(hidden_layer_sizes=(layers, layers), max_iter=x+1, verbose=False).fit(X, y)
 
         # Predictions and Evaluation``
         predictions = model.predict(X)
@@ -26,12 +26,10 @@ def feed_foward_nn(X, y, test_price, data_portion, clusters, test_cluster):
         #save train and test mse
         test_mse_arr[x] = test_mse
         mse_arr[x] = mse
-        print(test_price.iloc[-1], predict_test)
 
     #plot test and train mse for each iteration
    
-    print(predictions)
-    print(y)
+   
     """
     plt.plot(test_mse_arr)
     plt.plot(mse_arr)
@@ -53,17 +51,16 @@ def feed_foward_nn(X, y, test_price, data_portion, clusters, test_cluster):
             cluster_final_price[y] = cluster_series[y][-1]
 
 
-        models.append(MLPRegressor(hidden_layer_sizes=(30,30), max_iter=50, verbose=True).fit(cluster_series, cluster_final_price))
+        models.append(MLPRegressor(hidden_layer_sizes=(layers,layers), max_iter=100, verbose=False).fit(cluster_series, cluster_final_price))
     
 
     
-
+    print(layers)
     # test performance of each model on test series
     test_predictions = []   
     for x in range(len(models)):
         test_predictions.append(models[x].predict(test_price.iloc[0:data_portion].values.reshape(1, -1)))
-        
-    
+
 
     #print cluster number, prediction, actual, and rmse
     print(test_cluster+1)

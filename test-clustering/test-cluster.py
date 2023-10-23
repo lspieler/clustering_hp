@@ -15,6 +15,7 @@ import concurrent.futures
 from scipy.spatial.distance import squareform
 from scipy.cluster.hierarchy import fcluster
 from multiprocessing import freeze_support
+from fft import fft_distance
 import cProfile
 import ot
 from scipy.stats import gaussian_kde
@@ -26,7 +27,7 @@ from sklearn.neural_network import MLPRegressor
 from sklearn.metrics import mean_squared_error
 from sklearn.datasets import make_regression
 from sklearn.model_selection import train_test_split
-from lstm import run_lstm
+from lstm import run_lstm, cluster_lstm
 
 
 
@@ -108,6 +109,7 @@ def fdtw_clustering(series):
 
     n = len(series)
     distance_matrix = np.zeros((n, n))
+    fourier_distance_matrix = np.zeros((n, n))
 
     for i in range(n):
         for j in range(i+1, n):
@@ -116,9 +118,21 @@ def fdtw_clustering(series):
             distance_matrix[i, j] = distance
             distance_matrix[j, i] = distance
             #fourier distance
-            #fft_distance(series[i], series[j])
-    
+           
     return distance_matrix
+
+def fft_clustering(series):
+
+    n = len(series)
+    fourier_distance_matrix = np.zeros((n, n))
+
+    for i in range(n):
+        for j in range(i+1, n):
+
+            fourier_distance_matrix[i, j] = fft_distance(series[i], series[j], detrend = True, dc_component = True, phase = True, distance_metric = 'euclidean')
+            fourier_distance_matrix[j, i] = fft_distance(series[j], series[i], detrend = True, dc_component = True, phase = True, distance_metric = 'euclidean')
+              
+    return fourier_distance_matrix
 
 def compute_kde(series):
     """
@@ -133,23 +147,24 @@ def compute_kde(series):
 
 
 
+
 def cluster(freq_per_second, num_clusters, poriton, learner, layers= 100):
 
-    msgs = sorted(glob.glob('/mnt/research/d.byrd/students/lspieler/monthly/AAPL_2023-04-*_message_10.csv'))
-    orders = sorted(glob.glob('/mnt/research/d.byrd/students/lspieler/monthly/AAPL_2023-04-*_orderbook_10.csv'))
-    print(msgs)
-    print(orders)
+    msgs = sorted(glob.glob('./data/monthly/AAPL_2023-04-*_message_10.csv'))[:16]
+    orders = sorted(glob.glob('./data/monthly/AAPL_2023-04-*_orderbook_10.csv'))[:16]
+
     #get data from last file 
     test = get_data(0, 10000000, freq_per_second=freq_per_second, directory = "", orderbook_filename = orders[-1], message_filename = msgs[-1])
     #replace all nan values with interpolated values
     test = test.bfill().ffill()
     test_price =((test['price']/test['price'].iloc[0])-1).ffill().bfill()*100
+    msgs = msgs[:-1]
+    orders = orders[:-1]
     data_length = len(test_price)
     num_files = len(msgs)
     data_portion = int(data_length * poriton)
     #exclude last day from msgs and orders
-    msgs = msgs
-    orders = orders
+ 
     price_series = np.empty((num_files,data_length))
     volume_series = np.empty((num_files, data_length))
     vp_series = np.empty((num_files,data_length))
@@ -192,8 +207,19 @@ def cluster(freq_per_second, num_clusters, poriton, learner, layers= 100):
     price_distance_matrix = fdtw_clustering(price_series)
     volume_distance_matrix = fdtw_clustering(volume_series)
     #vp_distance_matrix = fdtw_clustering(vp_series)
-    
 
+    fourier_price_distance_matrix = fft_clustering(price_series)
+    condensed_D1 = squareform(fourier_price_distance_matrix)
+    """
+    Z = linkage(condensed_D1, 'ward')
+    dendrogram(Z)
+    plt.title('Hierarchical Clustering of Time Series')
+    plt.xlabel('Time Series')
+    plt.ylabel('Distance')
+    #output dendrogram to png file
+    plt.savefig('fourier_price_dendrogram.png')
+    input("stop")
+    """
     condensed_D1 = squareform(price_distance_matrix)
     condensed_D2 = squareform(volume_distance_matrix)
     #condensed_D3 = squareform(vp_distance_matrix)
@@ -262,9 +288,12 @@ def cluster(freq_per_second, num_clusters, poriton, learner, layers= 100):
         y[x] = price_series[x][-1]
 
     if learner == "lstm":
-        run_lstm(X, y, test_price, data_portion, layers, layers, 50, 100)
+        run_lstm(X, y, test_price, data_portion, layers, layers, 1, 100)
     elif learner == "ffnn":
-        feed_foward_nn(X, y, test_price, data_portion, clusters, test_cluster)
+        feed_foward_nn(X, y, test_price, data_portion, clusters, test_cluster, layers)
+    elif learner == "cluster-lstm":
+        cluster_lstm(clusters, test_cluster, test_price, data_portion, layers, 100, 100) 
+
 
    
     """
@@ -281,7 +310,7 @@ def cluster(freq_per_second, num_clusters, poriton, learner, layers= 100):
 if __name__ == '__main__':
     #take command line arguments for start, end and freq_per_second
     if len(sys.argv) != 6:
-        print("Usage: python test-cluster.py start end num_clusters freq_per_second poriton")
+        print("Usage: python test-cluster.py freq_per_second num_clusters poriton learner layers")
         sys.exit(1)
     freq_per_second = str(sys.argv[1])
     num_clusters = int(sys.argv[2])
