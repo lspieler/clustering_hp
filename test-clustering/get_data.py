@@ -31,3 +31,10 @@ def _add_price(df):
     # Use bid-ask midpoint as price. Price is 10,000 times the actual price in the data.
     df['price'] = (df['b_price_0'] + df['a_price_0']) / 2 / 10000
     return df
+
+def get_simple_data(start, end, filename, frequency):
+    df = pd.read_csv(filename)
+    return df
+
+if __name__ == "__main__":
+    get_simple_data(0,0,"/Users/lspieler/Semesters/Fall 23/Honors Project/test-clustering/data/AAP_2007-06-27_34200000_57600000_1_1.csv", 0)

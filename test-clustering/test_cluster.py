@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.mixture import GaussianMixture
 from concurrent.futures import ProcessPoolExecutor
-from get_data import get_data
+from get_data import get_data, get_simple_data
 import glob
 from ffnn import feed_foward_nn
 from joblib import Parallel, delayed
@@ -192,6 +192,15 @@ def cluster(freq_per_second, num_clusters, poriton, learner, layers= 100):
         results = list(executor.map(get_data, *zip(*args))) 
     
     executor.shutdown(wait=True)
+
+    # get data using get_simple data
+    result = np.empty((num_files,23400))
+    x = 0
+    for x in range(len(msgs)):
+        df = get_simple_data(0, 10000000, msgs[x], freq_per_second)
+        result[x] = df
+
+    
 
     x= 0
     for result in results:
