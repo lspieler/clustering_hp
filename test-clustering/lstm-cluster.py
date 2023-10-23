@@ -16,7 +16,9 @@ from lstm import run_lstm, cluster_lstm
 def lstm_cluster(num_clusters, data_portion, num_files, layers = 50, batch = 100, epoch = 150, ):
     data_length = 23400 * data_portion
  
-    msgs = sorted(glob.glob('/Users/lspieler/Semesters/Fall 23/Honors Project/test-clustering/data/AAP_2007-06-27_34200000_57600000_1_1.csv'))
+    msgs = sorted(glob.glob('/mnt/research/d.byrd/lobster/sp500_lev1_sec1/AAPL/AAPL_*.csv'))
+    print(len(msgs))
+    input("Press enter to continue")
 
     result = np.zeros((num_files,23400))
 
