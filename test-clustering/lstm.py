@@ -52,6 +52,7 @@ def run_lstm(X, y, test_price, data_portion, layer1 = 50, layer2=50, batch = 100
     print(f'Acutal Price for Next Day: {y[-1]}')
     print(f"Predicted Price for Next Day: {predicted_price}")
 
+    return(predicted_price[0][0], y[-1])
     #train lstm network on each cluster
 
     """
@@ -83,12 +84,14 @@ def cluster_lstm(clusters, test_cluster, test_price, data_portion, layer1 = 50, 
         model.fit(scaled_data, cluster_final_price, epochs=epoch, batch_size=batch)
       
         models.append(model)
-    
+
     # test performance of each model on test series
     test_predictions = []
     for x in range(len(models)):
-        test_predictions.append(models[x].predict(test_price.iloc[0:data_portion].values.reshape(1, -1)))
+        test_predictions.append(models[x].predict(test_price[0:data_portion].reshape(1, -1)))
 
     print(test_cluster+1)
     for x in range(len(test_predictions)):
-        print(x+1, test_predictions[x], test_price.iloc[-1], mean_squared_error([test_price.iloc[-1]], test_predictions[x]))
+        print(x+1, test_predictions[x], test_price[-1], mean_squared_error([test_price[-1]], test_predictions[x]))
+    
+    return(test_cluster+1, test_predictions[test_cluster][0][0], test_price[-1])
