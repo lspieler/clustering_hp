@@ -8,29 +8,32 @@ import tensorflow as tf
 from sklearn.metrics import mean_squared_error
 
 
-def run_lstm(X, y, test_price, data_portion, layer1 = 50, layer2=50, batch = 100, epoch = 150):
+def run_lstm(X, y, test_price, data_portion, layer1 = 50, layer2=30, batch = 100, epoch = 150):
     
     #strategy = tf.distribute.MirroredStrategy()
 
-    X_train = X[:-1]
-    y_train = y[:-1]
+
+ 
+    test_x = test_price[0:data_portion]
+    test_y = test_price[-1] - test_x[-1]
+    
     scaler = MinMaxScaler()
     model = Sequential()
-    scaled_data = scaler.fit_transform(X_train)
+    scaled_data = scaler.fit_transform(X)
+    test = scaler.transform(test_price[:data_portion].reshape(1, -1))
+    test = test.reshape(1, X.shape[1], 1)
     scaled_test = scaler.transform(X[-1].reshape(1, -1))
     scaled_test = scaled_test.reshape(1, X.shape[1], 1)
     scaled_data = scaled_data.reshape(scaled_data.shape[0], scaled_data.shape[1], 1)
     
     
     model.add(LSTM(units=layer1, return_sequences=False, input_shape=(X.shape[1], 1)))
+
     model.add(Dense(units=1))
 
     model.compile(optimizer='adam', loss='mean_squared_error')
 
-    # 3. Training the LSTM
-
-
-    model.fit(scaled_data, y_train, epochs=epoch, batch_size=batch)
+    model.fit(scaled_data, y, epochs=epoch, batch_size=batch)
 
         
 
@@ -42,18 +45,13 @@ def run_lstm(X, y, test_price, data_portion, layer1 = 50, layer2=50, batch = 100
     scaled_test = scaler.transform(test_flattened)
     scaled_test = scaled_test.reshape(1, 11700, 1)
     """
-    predicted_price = model.predict(scaled_data) # De-normalize
-    print(f'Acutal Price for Next Day: {y[:-1]}')
-    print(f"Predicted Price for Next Day: {predicted_price}")
-
     # test on test data
 
-    predicted_price = model.predict(scaled_test) # De-normalize
-    print(f'Acutal Price for Next Day: {y[-1]}')
+    predicted_price = model.predict(test) # De-normalize
+    print(f'Acutal Price for Next Day: {test_y}')
     print(f"Predicted Price for Next Day: {predicted_price}")
 
-    return(predicted_price[0][0], y[-1])
-    #train lstm network on each cluster
+    return(predicted_price[0][0], test_y)
 
     """
     Create a new lstm for each cluster and train on each cluster
@@ -82,16 +80,16 @@ def cluster_lstm(clusters, test_cluster, test_price, data_portion, layer1 = 50, 
         model.add(Dense(units=1))
         model.compile(optimizer='adam', loss='mean_squared_error')
         model.fit(scaled_data, cluster_final_price, epochs=epoch, batch_size=batch)
-      
         models.append(model)
 
+    ttest = scaler.transform(test_price[0:data_portion].reshape(1, -1))
     # test performance of each model on test series
     test_predictions = []
     for x in range(len(models)):
-        test_predictions.append(models[x].predict(test_price[0:data_portion].reshape(1, -1)))
+        test_predictions.append(models[x].predict(ttest.reshape(1, ttest.shape[1], 1)))
 
     print(test_cluster+1)
     for x in range(len(test_predictions)):
         print(x+1, test_predictions[x], test_price[-1], mean_squared_error([test_price[-1]], test_predictions[x]))
     
-    return(test_cluster+1, test_predictions[test_cluster][0][0], test_price[-1])
+    return(test_predictions[test_cluster][0][0], test_price[-1])

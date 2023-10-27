@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from sklearn.mixture import GaussianMixture
 from concurrent.futures import ProcessPoolExecutor
 from get_data import get_data, get_simple_data
+from multiprocessing import pool
 import glob
 from ffnn import feed_foward_nn
 from joblib import Parallel, delayed
@@ -44,12 +45,12 @@ def find_medoid(cluster):
 
     return medoid
 
-def assign_to_cluster(new_series, cluster_medoids):
+def assign_to_cluster(new_series, cluster_medoids, data_portion):
         min_distance = float('inf')
         best_cluster = None
 
         for x in range(len(cluster_medoids)):
-            distance, _ = fastdtw([new_series], [cluster_medoids[x]], dist=euclidean)
+            distance, _ = fastdtw([new_series[:data_portion]], [cluster_medoids[x][:data_portion]], dist=euclidean)
             if distance < min_distance:
                 min_distance = distance
                 best_cluster = x
@@ -192,6 +193,8 @@ def cluster(freq_per_second, num_clusters, poriton, learner, layers= 100):
         results = list(executor.map(get_data, *zip(*args))) 
     
     executor.shutdown(wait=True)
+
+    
 
     # get data using get_simple data
     result = np.empty((num_files,23400))

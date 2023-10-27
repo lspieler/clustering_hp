@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import glob
+from multiprocessing import Pool
 from get_data import get_simple_data
 from test_cluster import fdtw_clustering
 from scipy.cluster.hierarchy import linkage, dendrogram
@@ -13,18 +14,32 @@ from test_cluster import assign_to_cluster
 from lstm import run_lstm, cluster_lstm
 
 
-def lstm_cluster(num_clusters, data_portion, num_files, layers = 50, batch = 100, epoch = 150, ):
+def lstm_cluster(num_clusters, data_portion, num_files, layers = 50, batch = 100, epoch = 150):
     data_length = 23400
     data_portion = int(data_length * data_portion)
  
     msgs = sorted(glob.glob('/Users/lspieler/Semesters/Fall 23/Honors Project/test-clustering/data/AAPL/AAPL_*.csv'))
     print(len(msgs))
- 
 
-    cluster_results = []
-    normal_results = []
 
-    for f in range(len(msgs) - num_files):
+    args = [(f, msgs, num_files, num_clusters, data_portion, layers, batch, epoch) for f in range(len(msgs) - num_files)]
+    with Pool(processes=8) as pool:
+        results = pool.starmap(process_files, args)
+    
+     # If you need to process results
+    all_normal_results = [res[0] for res in results]
+    all_cluster_results = [res[1] for res in results]
+    
+    # write output to file
+    with open(f"lstm-cluster-{num_clusters}-{data_portion}-{num_files}-{layers}-{batch}-{epoch}.txt", "w") as f:
+        f.write(f"normal results: {all_normal_results}")
+        f.write(f"cluster results: {all_cluster_results}")
+
+
+def process_files(f, msgs, num_files, num_clusters, data_portion, layers, batch, epoch):
+        
+        normal_results = []
+        cluster_results = []
 
         i = num_files + f
         files = msgs[f: i]
@@ -61,6 +76,11 @@ def lstm_cluster(num_clusters, data_portion, num_files, layers = 50, batch = 100
 
         for i in range(len(labels)):
                 clusters[labels[i]-1].append(price_series[i])
+        
+        # if clusters only contain 1 data point, break
+        for i in range(len(clusters)):
+            if len(clusters[i]) <= 2:
+                break
 
         # Find medoid of each cluster
         medoids = np.empty((num_clusters, 23400))
@@ -68,7 +88,7 @@ def lstm_cluster(num_clusters, data_portion, num_files, layers = 50, batch = 100
             medoids[x] = find_medoid(clusters[x])
 
         # find cluster of test series
-        test_cluster = assign_to_cluster(test_price, medoids)
+        test_cluster = assign_to_cluster(test_price, medoids, data_portion)
 
         # halve all price series and save to new variable
         X = np.empty((len(result),data_portion))
@@ -81,16 +101,19 @@ def lstm_cluster(num_clusters, data_portion, num_files, layers = 50, batch = 100
         #get final price of each day as the y
         y = np.empty(len(result))
         for x in range(len(price_series)):
-            y[x] = price_series[x][-1]
+            y[x] = price_series[x][-1] - X[x][-1] 
 
-     
+        #adjust test price y
+           
 
-       
+        # compute absolute difference between last value in x and y
+      
 
-        normal_results.append(run_lstm(X, y, test_price, data_portion, layers, layers, batch, epoch))
+
+        normal_results.append(run_lstm(X, y, test_price, data_portion, layers, layers, 1, epoch =200))
         cluster_results.append(cluster_lstm(clusters, test_cluster, test_price, data_portion, layers, batch, epoch))
-        print(normal_results)
-        print(cluster_results)
+
+        return(normal_results, cluster_results)
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
@@ -98,5 +121,5 @@ if __name__ == "__main__":
         sys.exit(1)
     data_portion = float(sys.argv[1])
     num_clusters = int(sys.argv[2])
-    lstm_cluster(2, 0.5, 5, layers = 35, batch = 1, epoch = 100)
+    lstm_cluster(2, 0.5, 8, layers = 35, batch = 1, epoch = 100)
 
