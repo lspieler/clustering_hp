@@ -79,7 +79,7 @@ def process_files(f, msgs, num_files, num_clusters, data_portion, layers, batch,
         
         # if clusters only contain 1 data point, break
         for i in range(len(clusters)):
-            if len(clusters[i]) <= 2:
+            if len(clusters[i]) <= 1:
                 break
 
         # Find medoid of each cluster
@@ -95,22 +95,21 @@ def process_files(f, msgs, num_files, num_clusters, data_portion, layers, batch,
         for x in range(len(price_series)):
             X[x] = price_series[x][0:data_portion]
 
-    
 
         print(price_series.shape)
         #get final price of each day as the y
-        y = np.empty(len(result))
+        y = np.empty((len(result),data_portion))
         for x in range(len(price_series)):
-            y[x] = price_series[x][-1] - X[x][-1] 
+            y[x] = price_series[x][data_portion:]
 
         #adjust test price y
-           
+ 
 
         # compute absolute difference between last value in x and y
       
 
 
-        normal_results.append(run_lstm(X, y, test_price, data_portion, layers, layers, 1, epoch =200))
+        normal_results.append(run_lstm(X, y, test_price, data_portion, 80, layers, 1, epoch =250))
         cluster_results.append(cluster_lstm(clusters, test_cluster, test_price, data_portion, layers, batch, epoch))
 
         return(normal_results, cluster_results)
@@ -121,5 +120,5 @@ if __name__ == "__main__":
         sys.exit(1)
     data_portion = float(sys.argv[1])
     num_clusters = int(sys.argv[2])
-    lstm_cluster(2, 0.5, 8, layers = 35, batch = 1, epoch = 100)
+    lstm_cluster(2, 0.5, 10, layers = 30, batch = 1, epoch = 100)
 

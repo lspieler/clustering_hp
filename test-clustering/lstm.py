@@ -15,8 +15,10 @@ def run_lstm(X, y, test_price, data_portion, layer1 = 50, layer2=30, batch = 100
 
  
     test_x = test_price[0:data_portion]
-    test_y = test_price[-1] - test_x[-1]
-    
+    test_y = test_price[data_portion:]
+
+    plt.plot(X[0])
+    plt.plot(y[0])    
     scaler = MinMaxScaler()
     model = Sequential()
     scaled_data = scaler.fit_transform(X)
@@ -26,10 +28,9 @@ def run_lstm(X, y, test_price, data_portion, layer1 = 50, layer2=30, batch = 100
     scaled_test = scaled_test.reshape(1, X.shape[1], 1)
     scaled_data = scaled_data.reshape(scaled_data.shape[0], scaled_data.shape[1], 1)
     
-    
     model.add(LSTM(units=layer1, return_sequences=False, input_shape=(X.shape[1], 1)))
 
-    model.add(Dense(units=1))
+    model.add(Dense(units=y.shape[1]))
 
     model.compile(optimizer='adam', loss='mean_squared_error')
 
@@ -51,7 +52,7 @@ def run_lstm(X, y, test_price, data_portion, layer1 = 50, layer2=30, batch = 100
     print(f'Acutal Price for Next Day: {test_y}')
     print(f"Predicted Price for Next Day: {predicted_price}")
 
-    return(predicted_price[0][0], test_y)
+    return(predicted_price[0][0], test_y[0])
 
     """
     Create a new lstm for each cluster and train on each cluster
@@ -76,7 +77,7 @@ def cluster_lstm(clusters, test_cluster, test_price, data_portion, layer1 = 50, 
     
 
         model = Sequential()
-        model.add(LSTM(units=layer1, return_sequences=False, input_shape=(scaled_data.shape[1], 1)))
+        model.add(LSTM(units=layer1,return_sequences=False, input_shape=(scaled_data.shape[1], 1)))
         model.add(Dense(units=1))
         model.compile(optimizer='adam', loss='mean_squared_error')
         model.fit(scaled_data, cluster_final_price, epochs=epoch, batch_size=batch)

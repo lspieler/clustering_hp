@@ -5,17 +5,30 @@ from transformers import BertConfig, BertModel, TimeSeriesTransformerConfig, Tim
 from sklearn.preprocessing import MinMaxScaler
 from torch.utils.data import DataLoader, TensorDataset
 import matplotlib.pyplot as plt
+import glob
+from get_data import get_simple_data
 
 # Sample data (replace with your stock data)
 prices = np.random.rand(100, 48)  # 100 days, 48 time steps per day (e.g., 30-minute intervals)
+
+msgs = sorted(glob.glob('/Users/lspieler/Semesters/Fall 23/Honors Project/test-clustering/data/AAPL/AAPL_*.csv'))[:10]
+prices = np.zeros((len(msgs),23400))
+
+data_portion = int(prices.shape[1] * 0.5)
+
+for x in range(len(msgs)):
+    df = get_simple_data(0, 10000000, msgs[x], 100000)
+    df = df.iloc[0:23400]
+    df["price"] = (df["ask_1"] + df["bid_1"]).bfill().ffill()/2
+    prices[x] = (df["price"]/df['price'].iloc[0] -1 ) * 100
 
 # Normalize data
 scaler = MinMaxScaler()
 prices = scaler.fit_transform(prices)
 
 # Split into first half and second half of the day
-X = prices[:, :24]
-y = prices[:, 24:]
+X = prices[:, :data_portion]
+y = prices[:, data_portion:]
 
 X = np.expand_dims(X, axis=-1)
 y = np.expand_dims(y, axis=-1)
@@ -37,7 +50,7 @@ class TimeSeriesPredictor(nn.Module):
     def __init__(self):
         super(TimeSeriesPredictor, self).__init__()
         self.transformer = transformer
-        self.decoder = nn.Linear(64, 24)  # predict 24 time steps
+        self.decoder = nn.Linear(64, data_portion)  # predict 24 time steps
 
     def forward(self, x):
         output = self.transformer(inputs_embeds=x)
@@ -48,7 +61,7 @@ criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 # Training loop
-epochs = 1000
+epochs = 100
 for epoch in range(epochs):
     for batch_X, batch_y in loader:
         optimizer.zero_grad()
@@ -60,8 +73,8 @@ for epoch in range(epochs):
 
 
 
-test_X = torch.tensor(X[-10:], dtype=torch.float32)
-test_y = torch.tensor(y[-10:], dtype=torch.float32)
+test_X = torch.tensor(X[-1:], dtype=torch.float32)
+test_y = torch.tensor(y[-1:], dtype=torch.float32)
 
 # Predict using the model
 model.eval()  # Set the model to evaluation mode

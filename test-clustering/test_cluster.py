@@ -150,18 +150,27 @@ def compute_kde(series):
 
 
 def cluster(freq_per_second, num_clusters, poriton, learner, layers= 100):
+    num_files = 10
 
-    msgs = sorted(glob.glob('./data/monthly/AAPL_2023-04-*_message_10.csv'))[:16]
-    orders = sorted(glob.glob('./data/monthly/AAPL_2023-04-*_orderbook_10.csv'))[:16]
+    msgs = sorted(glob.glob('/Users/lspieler/Semesters/Fall 23/Honors Project/test-clustering/data/AAPL/AAPL_*.csv'))[:num_files]
 
-    #get data from last file 
-    test = get_data(0, 10000000, freq_per_second=freq_per_second, directory = "", orderbook_filename = orders[-1], message_filename = msgs[-1])
-    #replace all nan values with interpolated values
-    test = test.bfill().ffill()
-    test_price =((test['price']/test['price'].iloc[0])-1).ffill().bfill()*100
-    msgs = msgs[:-1]
-    orders = orders[:-1]
-    data_length = len(test_price)
+    # get data using get_simple data
+    result = np.empty((num_files,23400))
+    x = 0
+    for x in range(len(msgs)):
+        df = get_simple_data(0, 10000000, msgs[x], freq_per_second)
+        df = df.iloc[0:23400]
+        df["price"] = (df["ask_1"] + df["bid_1"]).bfill().ffill()/2
+        result[x] = (df["price"]/df['price'].iloc[0] -1 ) * 100
+        print(result[x])
+    
+    data_length = result.shape[1]
+
+    test_price = result[-1]
+    result = result[:-1]
+
+    plt.plot(test_price)
+    
     num_files = len(msgs)
     data_portion = int(data_length * poriton)
     #exclude last day from msgs and orders
@@ -171,48 +180,14 @@ def cluster(freq_per_second, num_clusters, poriton, learner, layers= 100):
     vp_series = np.empty((num_files,data_length))
 
     """
-    #Convert all orderbook and message files to all_series format
-    for x in range(10):
-        orderbook_file = orders[x]
-        msg_file = msgs[x]
-        df = get_data(0, 10000000, freq_per_second=1, directory = "", orderbook_filename = orderbook_file, message_filename = msg_file)
-        #replace all nan values with interpolated values
-        df = df.interpolate()
-        series[x] = df['price']
-    """
-    
-
-    """
-    df = get_data(0, 10000000, freq_per_second=1, directory = "", orderbook_filename = orderbook_file, message_filename = msg_file)
-    #replace all nan values with interpolated values
-    test_series = df['price'].ffill().bfill()"""
-    
     args = [(0, 10000000, freq_per_second, "", order, msg) for order, msg in zip(orders, msgs)]
 
     with concurrent.futures.ProcessPoolExecutor() as executor:
         results = list(executor.map(get_data, *zip(*args))) 
     
     executor.shutdown(wait=True)
+    """
 
-    
-
-    # get data using get_simple data
-    result = np.empty((num_files,23400))
-    x = 0
-    for x in range(len(msgs)):
-        df = get_simple_data(0, 10000000, msgs[x], freq_per_second)
-        result[x] = df
-
-    
-
-    x= 0
-    for result in results:
-        price_series[x] = ((result['price']/result['price'].iloc[0])-1).ffill().bfill()*100
-        volume_series[x] = ((result['b_size_0'] / result['a_size_0'])-1).ffill().bfill().fillna(0)*100
-        #combine both volumen and price into one series such that a data
-        #point is a tuple of (price, volume)
-        #vp_series[x] = (price_series[x], volume_series[x])
-        x += 1
     
     #print(vp_series[-1].shape)
     

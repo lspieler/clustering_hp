@@ -19,12 +19,12 @@ def fft_distance(ts1, ts2, detrend = True, dc_component = True, phase = True, di
         freq1[0] = 0
         freq2[0] = 0
 
-    """
+    
     #show frequncy domain
     plt.plot(freq1)
     plt.plot(freq2)
     plt.show()
-    """
+    
     
     if distance_metric == 'euclidean':
      # Calculate the Euclidean distance between the frequency representations
