@@ -36,7 +36,15 @@ def run_lstm(X, y, test_price, data_portion, layer1 = 50, layer2=30, batch = 100
 
     model.fit(scaled_data, y, epochs=epoch, batch_size=batch)
 
-        
+
+    # if model rmse is too high train 10 more epochs
+    count = 0
+    while count <= 10:
+        if mean_squared_error(y, model.predict(scaled_data)) > 0.2:
+            model.fit(scaled_data, y, epochs=10, batch_size=batch)
+            count += 1
+            if count == 10:
+                return(0, 0)
 
     # 4. Making Predictionscç
     # To predict the price for the next day using the last 250 days:
@@ -81,6 +89,15 @@ def cluster_lstm(clusters, test_cluster, test_price, data_portion, layer1 = 50, 
         model.add(Dense(units=1))
         model.compile(optimizer='adam', loss='mean_squared_error')
         model.fit(scaled_data, cluster_final_price, epochs=epoch, batch_size=batch)
+
+        # if model rmse is too high train 10 more epochs
+        count = 0
+        while count < 10:
+            if mean_squared_error(cluster_final_price, model.predict(scaled_data)) > 0.01:
+                model.fit(scaled_data, cluster_final_price, epochs=10, batch_size=batch)
+                count += 1
+                if count == 10:
+                    return(0, 0)
         models.append(model)
 
     ttest = scaler.transform(test_price[0:data_portion].reshape(1, -1))

@@ -17,11 +17,9 @@ from lstm import run_lstm, cluster_lstm
 def lstm_cluster(num_clusters, data_portion, num_files, layers = 50, batch = 100, epoch = 150):
     data_length = 23400
     data_portion = int(data_length * data_portion)
- 
+    
     msgs = sorted(glob.glob('/Users/lspieler/Semesters/Fall 23/Honors Project/test-clustering/data/AAPL/AAPL_*.csv'))
-    print(len(msgs))
-
-
+    
     args = [(f, msgs, num_files, num_clusters, data_portion, layers, batch, epoch) for f in range(len(msgs) - num_files)]
     with Pool(processes=8) as pool:
         results = pool.starmap(process_files, args)
@@ -40,7 +38,7 @@ def process_files(f, msgs, num_files, num_clusters, data_portion, layers, batch,
         
         normal_results = []
         cluster_results = []
-
+        print(f)
         i = num_files + f
         files = msgs[f: i]
         print(len(files))
@@ -109,16 +107,18 @@ def process_files(f, msgs, num_files, num_clusters, data_portion, layers, batch,
       
 
 
-        normal_results.append(run_lstm(X, y, test_price, data_portion, 80, layers, 1, epoch =250))
-        cluster_results.append(cluster_lstm(clusters, test_cluster, test_price, data_portion, layers, batch, epoch))
+        normal_results.append(run_lstm(X, y, test_price, data_portion, 100, layers, 1, epoch =250))
+        cluster_results.append(cluster_lstm(clusters, test_cluster, test_price, data_portion, layers, batch, epoch = 30))
 
         return(normal_results, cluster_results)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
+    if len(sys.argv) != 4:
         print("Usage: python test-cluster.py freq_per_second num_clusters poriton learner layers")
         sys.exit(1)
-    data_portion = float(sys.argv[1])
-    num_clusters = int(sys.argv[2])
-    lstm_cluster(2, 0.5, 10, layers = 30, batch = 1, epoch = 100)
+    num_clusters = int(sys.argv[1])
+    data_portion = float(sys.argv[2])
+    num_files = int(sys.argv[3])
+    print(num_clusters, data_portion, num_files)
+    lstm_cluster(num_clusters, data_portion, num_files, layers = 30, batch = 1, epoch = 100)
 
