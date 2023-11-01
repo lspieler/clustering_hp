@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import glob
-from multiprocessing import Pool
+from multiprocessing import Pool, Manager, Process
 from get_data import get_simple_data
 from test_cluster import fdtw_clustering
 from scipy.cluster.hierarchy import linkage, dendrogram
@@ -12,18 +12,33 @@ from test_cluster import find_medoid
 import sys
 from test_cluster import assign_to_cluster
 from lstm import run_lstm, cluster_lstm
+import time
 
+def update_monitor(shared_updates):
+    print("Starting update monitor")
+    with open('updates.txt', 'a') as file:
+        while True:
+            while shared_updates:  # While there are updates in the list
+                update = shared_updates.pop(0)  # Remove and get the first update
+                file.write(f'{update}\n')  # Write the update to file
+            time.sleep(5) 
 
 def lstm_cluster(num_clusters, data_portion, num_files, layers = 50, batch = 100, epoch = 150):
     data_length = 23400
     data_portion = int(data_length * data_portion)
     
-    msgs = sorted(glob.glob('/Users/lspieler/Semesters/Fall 23/Honors Project/test-clustering/data/AAPL/AAPL_*.csv'))
-    
-    args = [(f, msgs, num_files, num_clusters, data_portion, layers, batch, epoch) for f in range(len(msgs) - num_files)]
-    with Pool(processes=8) as pool:
-        results = pool.starmap(process_files, args)
-    
+    with Manager() as manager:
+        shared_updates = manager.list()
+        msgs = sorted(glob.glob('/Users/lspieler/Semesters/Fall 23/Honors Project/test-clustering/data/AAPL/AAPL_*.csv'))
+        
+        monitor_process = Process(target=update_monitor, args=(shared_updates,))
+        monitor_process.start()
+
+        args = [(f, msgs, num_files, num_clusters, data_portion, layers, batch, epoch, shared_updates) for f in range(len(msgs) - num_files)]
+        with Pool(processes=6) as pool:
+            results = pool.starmap(process_files, args)
+
+        monitor_process.terminate()    
      # If you need to process results
     all_normal_results = [res[0] for res in results]
     all_cluster_results = [res[1] for res in results]
@@ -34,8 +49,8 @@ def lstm_cluster(num_clusters, data_portion, num_files, layers = 50, batch = 100
         f.write(f"cluster results: {all_cluster_results}")
 
 
-def process_files(f, msgs, num_files, num_clusters, data_portion, layers, batch, epoch):
-        
+def process_files(f, msgs, num_files, num_clusters, data_portion, layers, batch, epoch, status_updates):
+        status_updates.append(f"Process {f} started iteration")
         normal_results = []
         cluster_results = []
         print(f)
@@ -106,8 +121,12 @@ def process_files(f, msgs, num_files, num_clusters, data_portion, layers, batch,
         # compute absolute difference between last value in x and y
       
 
+        status_updates.append(f"Process {f} started normal lstm")
 
         normal_results.append(run_lstm(X, y, test_price, data_portion, 100, layers, 1, epoch =250))
+
+        status_updates.append(f"Process {f} started cluster lstm")
+
         cluster_results.append(cluster_lstm(clusters, test_cluster, test_price, data_portion, layers, batch, epoch = 30))
 
         return(normal_results, cluster_results)
