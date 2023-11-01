@@ -11,8 +11,6 @@ from sklearn.metrics import mean_squared_error
 def run_lstm(X, y, test_price, data_portion, layer1 = 50, layer2=30, batch = 100, epoch = 150):
     
     #strategy = tf.distribute.MirroredStrategy()
-
-
  
     test_x = test_price[0:data_portion]
     test_y = test_price[data_portion:]
