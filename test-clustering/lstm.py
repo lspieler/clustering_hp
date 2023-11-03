@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import multiprocessing as mp
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
@@ -9,9 +10,10 @@ from sklearn.metrics import mean_squared_error
 
 
 def run_lstm(X, y, test_price, data_portion, layer1 = 50, layer2=30, batch = 100, epoch = 150):
-    
+    logger = mp.get_logger()  # Get the logger set up for multiprocessing
+    logger.debug(f'Worker f starting')
     #strategy = tf.distribute.MirroredStrategy()
- 
+   
     test_x = test_price[0:data_portion]
     test_y = test_price[data_portion:]
 

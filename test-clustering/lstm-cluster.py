@@ -16,6 +16,16 @@ import time
 import time
 import logging
 
+
+def init_worker():
+    # This will be called by each pool process when it starts.
+    logger = mp.get_logger()
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('[%(levelname)s/%(processName)s] %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+
 def update_monitor(shared_updates, lock):
 
     print("Starting update monitor")
@@ -48,8 +58,15 @@ def lstm_cluster(num_clusters, data_portion, num_files, layers = 50, batch = 100
         
 
     args = [(f, msgs, num_files, num_clusters, data_portion, layers, batch, epoch) for f in range(len(msgs) - num_files)]
-    with mp.Pool(processes=6) as pool:
-        logger.debug('%2d/%2d', len(args), len(args))
+    mp.log_to_stderr(logging.DEBUG)
+
+    # Use the initializer to set up logging in each pool process
+    with mp.Pool(processes=6, initializer=init_worker) as pool:
+        # The main process logging
+        logger = mp.get_logger()
+        logger.debug('Number of tasks: %2d', len(args))
+
+        # Run the tasks
         results = pool.starmap(process_files, args)
   
      # If you need to process results
@@ -131,7 +148,8 @@ def process_files(f, msgs, num_files, num_clusters, data_portion, layers, batch,
  
 
         # compute absolute difference between last value in x and y
-    
+        logger = mp.get_logger()  # Get the logger set up for multiprocessing
+        logger.debug(f'Worker f starting')
 
         normal_results.append(run_lstm(X, y, test_price, data_portion, 100, layers, 1, epoch =250))
 
