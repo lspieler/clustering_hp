@@ -15,8 +15,7 @@ def run_lstm(X, y, test_price, data_portion, layer1 = 50, layer2=30, batch = 100
     test_x = test_price[0:data_portion]
     test_y = test_price[data_portion:]
 
-    plt.plot(X[0])
-    plt.plot(y[0])    
+      
     scaler = MinMaxScaler()
     model = Sequential()
     scaled_data = scaler.fit_transform(X)
@@ -31,7 +30,7 @@ def run_lstm(X, y, test_price, data_portion, layer1 = 50, layer2=30, batch = 100
     model.add(Dense(units=y.shape[1]))
 
     model.compile(optimizer='adam', loss='mean_squared_error')
-
+    print('fitting model')
     model.fit(scaled_data, y, epochs=epoch, batch_size=batch)
 
 
