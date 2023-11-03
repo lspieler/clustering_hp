@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import glob
-from multiprocessing import Pool, Manager, Process
+import multiprocessing as mp
 from get_data import get_simple_data
 from test_cluster import fdtw_clustering
 from scipy.cluster.hierarchy import linkage, dendrogram
@@ -13,6 +13,8 @@ import sys
 from test_cluster import assign_to_cluster
 from lstm import run_lstm, cluster_lstm
 import time
+import time
+import logging
 
 def update_monitor(shared_updates, lock):
 
@@ -26,6 +28,18 @@ def update_monitor(shared_updates, lock):
             time.sleep(5) 
 
 def lstm_cluster(num_clusters, data_portion, num_files, layers = 50, batch = 100, epoch = 150):
+    ## set up logger
+    logger = mp.get_logger()
+
+    logger.setLevel(logging.DEBUG)
+    formatter = logging.Formatter(
+        fmt='[%(process)d] %(message)s',
+        datefmt='%y-%m-%d %H:%M:%S')
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
     data_length = 23400
     data_portion = int(data_length * data_portion)
     
@@ -34,7 +48,8 @@ def lstm_cluster(num_clusters, data_portion, num_files, layers = 50, batch = 100
         
 
     args = [(f, msgs, num_files, num_clusters, data_portion, layers, batch, epoch) for f in range(len(msgs) - num_files)]
-    with Pool(processes=6) as pool:
+    with mp.Pool(processes=6) as pool:
+        logger.debug('%2d/%2d', len(args), len(args))
         results = pool.starmap(process_files, args)
   
      # If you need to process results
