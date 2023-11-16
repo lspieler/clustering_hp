@@ -10,10 +10,12 @@ from scipy.spatial.distance import squareform
 from scipy.cluster.hierarchy import fcluster
 from test_cluster import find_medoid
 import sys
+from ffnn import feed_foward_nn
 from test_cluster import assign_to_cluster
 from lstm import run_lstm, cluster_lstm
 import time
 import time
+from lstm_ns import run_lstm as run_lstm_ns
 import logging
 
 
@@ -53,26 +55,28 @@ def lstm_cluster(num_clusters, data_portion, num_files, layers = 50, batch = 100
     data_length = 23400
     data_portion = int(data_length * data_portion)
     
-
-    msgs = sorted(glob.glob('/Users/lspieler/Semesters/Fall 23/Honors Project/test-clustering/data/AAPL/AAPL_*.csv'))[:12]
-        
+  
+    msgs = sorted(glob.glob('/Users/lspieler/Semesters/Fall 23/Honors Project/test-clustering/data/AAPL/AAPL_*.csv'))[:14]
+    print(len(msgs))
+    mp.set_start_method('spawn')
 
     args = [(f, msgs, num_files, num_clusters, data_portion, layers, batch, epoch) for f in range(len(msgs) - num_files)]
     mp.log_to_stderr(logging.DEBUG)
 
     # Use the initializer to set up logging in each pool process
-    with mp.Pool(processes=4, initializer=init_worker) as pool:
+    with mp.Pool(processes=1, initializer=init_worker) as pool:
         # The main process logging
         logger = mp.get_logger()
         logger.debug('Number of tasks: %2d', len(args))
 
         # Run the tasks
         results = pool.starmap(process_files, args)
-  
+    
+    print(results)
      # If you need to process results
     all_normal_results = [res[0] for res in results]
     all_cluster_results = [res[1] for res in results]
-    
+
     # write output to file
     with open(f"lstm-cluster-{num_clusters}-{data_portion}-{num_files}-{layers}-{batch}-{epoch}.txt", "w") as f:
         f.write(f"normal results: {all_normal_results}")
@@ -82,6 +86,8 @@ def lstm_cluster(num_clusters, data_portion, num_files, layers = 50, batch = 100
 def process_files(f, msgs, num_files, num_clusters, data_portion, layers, batch, epoch):
         normal_results = []
         cluster_results = []
+        nn_results = []
+        nn_cluster = []
         print(f)
         i = num_files + f
         files = msgs[f: i]
@@ -94,7 +100,7 @@ def process_files(f, msgs, num_files, num_clusters, data_portion, layers, batch,
             df = get_simple_data(0, 10000000, files[x], 100000)
             df = df.iloc[0:23400]
             df["price"] = (df["ask_1"] + df["bid_1"]).bfill().ffill()/2
-            result[x] = (df["price"]/df['price'].iloc[0] -1 ) * 100
+            result[x] = (df["price"]/df['price'].iloc[0] -1 ) * 10
 
 
 
@@ -133,46 +139,34 @@ def process_files(f, msgs, num_files, num_clusters, data_portion, layers, batch,
         # find cluster of test series
         test_cluster = assign_to_cluster(test_price, medoids, data_portion)
 
-
         # halve all price series and save to new variable
-        X = np.empty((len(result),data_portion))
-        for x in range(len(price_series)):
-            X[x] = price_series[x][0:data_portion]
+        X = price_series
 
-
-        print(price_series.shape)
-        #get final price of each day as the y
         y = np.empty((len(result),data_portion))
-        for x in range(len(price_series)):
-            y[x] = price_series[x][data_portion:]
-
-        #adjust test price y
  
 
         # compute absolute difference between last value in x and y
         logger = mp.get_logger()  # Get the logger set up for multiprocessing
         logger.debug(f'Worker f starting')
         print(test_cluster)
-        normal_results.append(run_lstm(X, y, test_price, data_portion, 100, 50, 1, epoch =100))
+        nn_results.append(feed_foward_nn(X, y, test_price, data_portion, 64,100))
+        normal_results.append(run_lstm(X, y, test_price, data_portion, 150, 50, 1, epoch =50))
+        #run_lstm_ns(X, y, test_price, data_portion, 150, 50, 1, epoch =30)
+   
         
         
         for x in range(len(clusters)):
-            cluster_series = np.empty((len(clusters[x]),data_portion))
+            cluster_series = np.empty((len(clusters[x]),X.shape[1]))
             for y in range(len(clusters[x])):
-                cluster_series[y] = clusters[x][y][0:data_portion]
+                cluster_series[y] = clusters[x][y]
 
             
             cluster_y = np.empty((len(clusters[x]),data_portion))
-            for y in range(len(clusters[x])):
-                cluster_y[y] = clusters[x][y][data_portion:]
             
             if x == test_cluster:
-                cluster_results.append(run_lstm(cluster_series, cluster_y, test_price, data_portion, 100, 50,1,epoch = 100))
-
-
-        print(X.shape)
-        print(cluster_series.shape)
-
+                print(cluster_series.shape)
+                cluster_results.append(run_lstm(cluster_series, cluster_y, test_price, data_portion, 150, 50,1,epoch = 50))
+                nn_cluster.append(feed_foward_nn(X, y, test_price, data_portion, 64,100))
         
         return(normal_results, cluster_results)
 
