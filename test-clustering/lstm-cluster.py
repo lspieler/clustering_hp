@@ -158,7 +158,7 @@ def process_files(f, msgs, num_files, num_clusters, data_portion, layers, batch,
         logger.debug(f'Worker f starting')
         print(test_cluster)
         nn_results.append(feed_foward_nn(X, y, test_price, data_portion, 64,100))
-        normal_results.append(run_lstm(X, y, test_price, data_portion, 150, 50, 1, epoch =50))
+        normal_results.append(run_lstm(X, y, test_price, data_portion, 150, 50, 20, epoch =40))
         #run_lstm_ns(X, y, test_price, data_portion, 150, 50, 1, epoch =30)
    
         
@@ -173,7 +173,7 @@ def process_files(f, msgs, num_files, num_clusters, data_portion, layers, batch,
             
             if x == test_cluster:
                 print(cluster_series.shape)
-                cluster_results.append(run_lstm(cluster_series, cluster_y, test_price, data_portion, 150, 50,1,epoch = 100))
+                cluster_results.append(run_lstm(cluster_series, cluster_y, test_price, data_portion, 150, 50,20,epoch = 40))
                 nn_cluster.append(feed_foward_nn(X, y, test_price, data_portion, 64,100))
         
         return(normal_results, cluster_results)
