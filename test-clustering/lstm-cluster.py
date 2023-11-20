@@ -56,7 +56,8 @@ def lstm_cluster(num_clusters, data_portion, num_files, layers = 50, batch = 100
     data_portion = int(data_length * data_portion)
     
   
-    msgs = sorted(glob.glob('/Users/lspieler/Semesters/Fall 23/Honors Project/test-clustering/data/AAPL/AAPL_*.csv'))[:14]
+    msgs = sorted(glob.glob('/Users/lspieler/Semesters/Fall 23/Honors Project/test-clustering/data/AAPL/AAPL_*.csv'))[:16]
+    # add msft 
     print(len(msgs))
     mp.set_start_method('spawn')
 
@@ -73,9 +74,16 @@ def lstm_cluster(num_clusters, data_portion, num_files, layers = 50, batch = 100
         results = pool.starmap(process_files, args)
     
     print(results)
-     # If you need to process results
-    all_normal_results = [res[0] for res in results]
-    all_cluster_results = [res[1] for res in results]
+     # If you need to process results# check if none
+    all_normal_results = []
+    all_cluster_results = []
+    for result in results:
+        if result is not None:
+            if result[0] is not None and result[1] is not None:
+                all_normal_results.append(result[0])
+                all_cluster_results.append(result[1])
+            else:
+                continue
 
     # write output to file
     with open(f"lstm-cluster-{num_clusters}-{data_portion}-{num_files}-{layers}-{batch}-{epoch}.txt", "w") as f:
@@ -97,12 +105,12 @@ def process_files(f, msgs, num_files, num_clusters, data_portion, layers, batch,
 
         x = 0
         for x in range(len(files)):
-            df = get_simple_data(0, 10000000, files[x], 100000)
+            df = get_simple_data(0, 10000000, files[x], 's')
             df = df.iloc[0:23400]
-            df["price"] = (df["ask_1"] + df["bid_1"]).bfill().ffill()/2
-            result[x] = (df["price"]/df['price'].iloc[0] -1 ) * 10
-
-
+            print()
+            df["price"] = (df["ask_1"] + df["bid_1"]).ffill().bfill()/2
+            result[x] = ((df["price"]/df['price'].iloc[0]) -1) * 10
+ 
 
         test_price = result[-1]
         result = result[:-1]
@@ -165,7 +173,7 @@ def process_files(f, msgs, num_files, num_clusters, data_portion, layers, batch,
             
             if x == test_cluster:
                 print(cluster_series.shape)
-                cluster_results.append(run_lstm(cluster_series, cluster_y, test_price, data_portion, 150, 50,1,epoch = 50))
+                cluster_results.append(run_lstm(cluster_series, cluster_y, test_price, data_portion, 150, 50,1,epoch = 100))
                 nn_cluster.append(feed_foward_nn(X, y, test_price, data_portion, 64,100))
         
         return(normal_results, cluster_results)
@@ -178,5 +186,5 @@ if __name__ == "__main__":
     data_portion = float(sys.argv[2])
     num_files = int(sys.argv[3])
     print(num_clusters, data_portion, num_files)
-    lstm_cluster(num_clusters, data_portion, num_files, layers = 200, batch = 1, epoch = 100)
+    lstm_cluster(num_clusters, data_portion, num_files, layers = 200, batch = 1, epoch = 10)
 
