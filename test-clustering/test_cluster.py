@@ -122,7 +122,7 @@ def fdtw_clustering(series):
            
     return distance_matrix
 
-def fft_clustering(series):
+def fft_clustering(series, distance_metric = 'euclidean'):
 
     n = len(series)
     fourier_distance_matrix = np.zeros((n, n))
@@ -130,8 +130,8 @@ def fft_clustering(series):
     for i in range(n):
         for j in range(i+1, n):
 
-            fourier_distance_matrix[i, j] = fft_distance(series[i], series[j], detrend = True, dc_component = True, phase = True, distance_metric = 'euclidean')
-            fourier_distance_matrix[j, i] = fft_distance(series[j], series[i], detrend = True, dc_component = True, phase = True, distance_metric = 'euclidean')
+            fourier_distance_matrix[i, j] = fft_distance(series[i], series[j], detrend = True, dc_component = True, phase = True, distance_metric = distance_metric)   
+            fourier_distance_matrix[j, i] = fft_distance(series[j], series[i], detrend = True, dc_component = True, phase = True, distance_metric= distance_metric)
               
     return fourier_distance_matrix
 

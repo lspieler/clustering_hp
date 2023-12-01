@@ -18,13 +18,6 @@ def fft_distance(ts1, ts2, detrend = True, dc_component = True, phase = True, di
         # Remove the DC component
         freq1[0] = 0
         freq2[0] = 0
-
-    
-    #show frequncy domain
-    plt.plot(freq1)
-    plt.plot(freq2)
-    plt.show()
-    
     
     if distance_metric == 'euclidean':
      # Calculate the Euclidean distance between the frequency representations
@@ -36,9 +29,8 @@ def fft_distance(ts1, ts2, detrend = True, dc_component = True, phase = True, di
         distance = np.linalg.norm(phase1 - phase2)
     elif distance_metric == 'correlation':
         #compare in correlation domain
-        corr1 = np.correlate(ts1, ts2)
-        corr2 = np.correlate(ts2, ts1)
+        corr1 = np.correlate(freq1, freq2)
+        corr2 = np.correlate(freq2, freq1)
         distance = np.linalg.norm(corr1 - corr2)
-
     
     return abs(distance)
