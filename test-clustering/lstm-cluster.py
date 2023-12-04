@@ -11,7 +11,7 @@ from scipy.cluster.hierarchy import fcluster
 from test_cluster import find_medoid
 import sys
 from ffnn import feed_foward_nn
-from test_cluster import assign_to_cluster, fft_clustering
+from test_cluster import assign_to_cluster, fft_clustering, wasserstein_kmeans, wmd_assign_to_cluster, wmd_get_centroids
 from lstm import run_lstm, cluster_lstm, episodic_lstm
 import time
 import time
@@ -42,6 +42,7 @@ def update_monitor(shared_updates, lock):
 def lstm_cluster(num_clusters, data_portion, num_files, layers = 50, batch = 100, epoch = 150, distancemetric = 'euclidean', model = 'lstm'):
     ## set up logger
     logger = mp.get_logger()
+    plotting = False
 
     logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter(
@@ -101,7 +102,7 @@ def process_files(f, msgs, num_files, num_clusters, data_portion, layers, batch,
         i = num_files + f
         files = msgs[f: i]
         print(len(files))
-
+        plot = False
         result = np.zeros((num_files,23400))
         plotting = np.zeros((num_files,23400))
 
@@ -119,7 +120,7 @@ def process_files(f, msgs, num_files, num_clusters, data_portion, layers, batch,
         test_price = result[-1]
         result = result[:-1]
 
-
+        labels = []
         if distancemetric == 'euclidean':
             distance_matrix = fdtw_clustering(result)
         elif distancemetric == 'fft_euclidean':
@@ -132,63 +133,86 @@ def process_files(f, msgs, num_files, num_clusters, data_portion, layers, batch,
             print('correlation')
             distance_matrix = fft_clustering(result, distance_metric = 'correlation')
         elif distancemetric == 'wmd':
-            print('not implemented')
+            labels = wasserstein_kmeans(result, num_clusters)
         else:
-            distance_matrix = fdtw_clustering(result)
+            print("not implemented")
+            return
+           
 
         price_series = result
-
-        condensed_D1 = squareform(distance_matrix)
-
-        Z = linkage(condensed_D1, 'ward')
-
-        labels = fcluster(Z, t=num_clusters, criterion='maxclust')
-
-        dendrogram(Z)
-        plt.title('Hierarchical Clustering of Time Series')
-        plt.xlabel('Time Series')
-        plt.ylabel('Distance')
-        #output dendrogram to png file
-        plt.savefig('price_dendrogram.png')
-
-        plt.clf()
-        # join all series and plot them with cluster coloring
-        plt.plot(np.concatenate(plotting).ravel())
-        # shade cluster days depending on clusters
-        for i in range(len(labels)):
-            if labels[i] == 1:
-                plt.axvspan(i*23400, (i+1)*23400, facecolor='red', alpha=0.5)
-            elif labels[i] == 2:
-                plt.axvspan(i*23400, (i+1)*23400, facecolor='blue', alpha=0.5)
-            elif labels[i] == 3:
-                plt.axvspan(i*23400, (i+1)*23400, facecolor='green', alpha=0.5)
-            elif labels[i] == 4:
-                plt.axvspan(i*23400, (i+1)*23400, facecolor='yellow', alpha=0.5)
-        plt.title('Time Series')
-        plt.xlabel('Time')
-        plt.show()
-
+        cluster_series = None
 
         clusters = []
         for i in range(num_clusters):
             clusters.append([])
 
-        for i in range(len(labels)):
-                clusters[labels[i]-1].append(price_series[i])
+        if distancemetric != 'wmd':
+
+            condensed_D1 = squareform(distance_matrix)
+            Z = linkage(condensed_D1, 'ward')
+            labels = fcluster(Z, t=num_clusters, criterion='maxclust')
+
+
+            for i in range(len(labels)):
+                    clusters[labels[i]-1].append(price_series[i])
+            
+            # if clusters only contain 1 data point, break
+            for i in range(len(clusters)):
+                print(len(clusters[i]))
+                if len(clusters[i]) <= 1:
+                    return
+
+            # Find medoid of each cluster
+            medoids = np.empty((num_clusters, 23400))
+            for x in range(len(clusters)):
+                medoids[x] = find_medoid(clusters[x])
+
+            # find cluster of test series
+            test_cluster = assign_to_cluster(test_price, medoids, data_portion)
+
+        else:
+
+            centroids= np.empty((num_clusters, 23400))
+            for i in range(num_clusters -1):
+                series = np.empty((len(labels),23400))
+                for j in range(len(labels)):
+                    if labels[j] == i:
+                        clusters[i].append(price_series[j])
+                        series[i] = price_series[j]
+                    centroids[i] = wmd_get_centroids(series[i])
+            test_cluster = wmd_assign_to_cluster(test_price[:data_portion], centroids[:,:data_portion])
         
-        # if clusters only contain 1 data point, break
-        for i in range(len(clusters)):
-            print(len(clusters[i]))
-            if len(clusters[i]) <= 1:
-                return
+                
+        print(labels)
+        print(f'{test_cluster} THis is the decided cluster')
+        # assing the new series
 
-        # Find medoid of each cluster
-        medoids = np.empty((num_clusters, 23400))
-        for x in range(len(clusters)):
-            medoids[x] = find_medoid(clusters[x])
+        if plot:
 
-        # find cluster of test series
-        test_cluster = assign_to_cluster(test_price, medoids, data_portion)
+            dendrogram(Z)
+            plt.title('Hierarchical Clustering of Time Series')
+            plt.xlabel('Time Series')
+            plt.ylabel('Distance')
+            #output dendrogram to png file
+            plt.savefig('price_dendrogram.png')
+
+            plt.clf()
+            # join all series and plot them with cluster coloring
+            plt.plot(np.concatenate(plotting).ravel())
+            # shade cluster days depending on clusters
+            for i in range(len(labels)):
+                if labels[i] == 1:
+                    plt.axvspan(i*23400, (i+1)*23400, facecolor='red', alpha=0.5)
+                elif labels[i] == 2:
+                    plt.axvspan(i*23400, (i+1)*23400, facecolor='blue', alpha=0.5)
+                elif labels[i] == 3:
+                    plt.axvspan(i*23400, (i+1)*23400, facecolor='green', alpha=0.5)
+                elif labels[i] == 4:
+                    plt.axvspan(i*23400, (i+1)*23400, facecolor='yellow', alpha=0.5)
+            plt.title('Time Series')
+            plt.xlabel('Time')
+            plt.show()
+       
 
         # halve all price series and save to new variable
         X = price_series
@@ -225,7 +249,7 @@ def process_files(f, msgs, num_files, num_clusters, data_portion, layers, batch,
         if model == 'lstm':
             cluster_results.append(run_lstm(cluster_series, cluster_y, test_price, data_portion, 150, 50,20,epoch = 20))
         elif model == 'ffnn':
-            nn_cluster.append(feed_foward_nn(X, y, test_price, data_portion, 64,100))
+            cluster_results.append(feed_foward_nn(X, y, test_price, data_portion, 64,100))
 
         return(normal_results, cluster_results)
 

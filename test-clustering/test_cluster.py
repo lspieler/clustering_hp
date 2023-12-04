@@ -29,6 +29,10 @@ from sklearn.metrics import mean_squared_error
 from sklearn.datasets import make_regression
 from sklearn.model_selection import train_test_split
 from lstm import run_lstm, cluster_lstm
+import numpy as np
+import ot  # Optimal Transport library
+from sklearn.cluster import KMeans
+from scipy.spatial.distance import cdist
 
 
 
@@ -79,31 +83,48 @@ def wasserstein_distance(P, Q):
     M /= M.max()
     return ot.emd2(P, Q, M)
 
-def wasserstein_kmeans(distributions, k, max_iter=10):
-    """Perform Wasserstein's k-means clustering for 1D distributions."""
-    n_samples = len(distributions)
-    n_bins = len(distributions[0])
-    
-    # Randomly initialize cluster centroids
-    centroids = distributions[np.random.choice(n_samples, k, replace=False)]
-    
-    for iteration in range(max_iter):
-        # Assign distributions to the closest centroid
-        with ProcessPoolExecutor() as executor:
-            distances = list(executor.map(compute_distances_to_centroids, [(d, centroids) for d in distributions]))
-        labels = np.argmin(distances, axis=1)
-        # Update the centroids to the barycenter of the clusters
-        new_centroids = [wasserstein_barycenter([distributions[i] for i in range(n_samples) if labels[i] == j]) for j in range(k)]
-        
-        if np.allclose(new_centroids, centroids):
-            break
-        centroids = new_centroids
 
-    return labels, centroids
+def compute_wasserstein_distances(series):
+    series = np.array([np.sort(s) for s in series])
+    n = series.shape[0]
+    distances = np.zeros((n, n))
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            # Compute the Wasserstein distance between series i and j
+            dist = ot.wasserstein_1d(series[i], series[j])
+            distances[i, j] = dist
+            distances[j, i] = dist  # The distance matrix is symmetric
+
+    return distances
+
+def wasserstein_kmeans(series, n_clusters):
+    distances = compute_wasserstein_distances(series)
+    kmeans = KMeans(n_clusters=n_clusters)
+    labels = kmeans.fit_predict(distances)
+    return labels
 
 def compute_distances_to_centroids(args):
     d, centroids = args
     return [wasserstein_distance(d, centroid) for centroid in centroids]
+
+def wmd_assign_to_cluster(new_series, cluster_representatives):
+    """
+    Assign a new series to an existing cluster based on the smallest Wasserstein distance to the cluster representatives.
+    """
+    new_series_dist = np.sort(new_series)  # Convert the new series into a distribution
+    distances = [ot.wasserstein_1d(new_series_dist, rep) for rep in cluster_representatives]
+
+    return np.argmin(distances)
+
+def wmd_get_centroids(cluster_series):
+    """
+    Compute a representative distribution for a cluster.
+    This could be a simple mean of the distributions, or a more complex representation.
+    """
+    # This is a placeholder; the actual implementation depends on your choice of representation
+    return np.mean(np.array(cluster_series), axis=0)
+
 
 
 def fdtw_clustering(series):
@@ -241,7 +262,7 @@ def cluster(freq_per_second, num_clusters, poriton, learner, layers= 100):
     # normalize the distributions for mass
 
     # Perform Wasserstein's k-means clustering
-    labels, centroids = wasserstein_kmeans(distributions, k=5)
+    labels, centroids = ƒ_kmeans(distributions, k=5)
     """
 
     # Assuming k clusters
