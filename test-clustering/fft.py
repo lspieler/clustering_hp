@@ -32,5 +32,9 @@ def fft_distance(ts1, ts2, detrend = True, dc_component = True, phase = True, di
         corr1 = np.correlate(freq1, freq2)
         corr2 = np.correlate(freq2, freq1)
         distance = np.linalg.norm(corr1 - corr2)
+    elif distance_metric == 'magnitude':
+        mag1 = np.abs(freq1)
+        mag2 = np.abs(freq2)
+        distance = np.linalg.norm(mag1 - mag2)
     
     return abs(distance)
