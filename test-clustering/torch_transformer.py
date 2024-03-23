@@ -1,4 +1,5 @@
 
+
 import numpy as np
 import matplotlib.pyplot as plt
 import glob
@@ -61,15 +62,17 @@ class PositionalEncoding(nn.Module):
         return x + self.pe[:, :x.size(1)]
 
 
-class PrivTransformer(nn.Module):
+class LSTMTransformer(nn.Module):
     def __init__(self, d_model, nhead, num_encoder_layers, num_decoder_layers, dim_feedforward, max_len=5000):
-        super(PrivTransformer, self).__init__()
+        super(LSTMTransformer, self).__init__()
         self.d_model = d_model
         self.nhead = nhead
         self.num_encoder_layers = num_encoder_layers
         self.num_decoder_layers = num_decoder_layers
         self.dim_feedforward = dim_feedforward
         self.max_len = max_len
+        self.pos_encoder = PositionalEncoding(d_model)
+
 
         self.embedding = nn.LSTM(1, d_model, batch_first=True)
         self.transformer = nn.Transformer(
@@ -78,10 +81,11 @@ class PrivTransformer(nn.Module):
             num_encoder_layers=num_encoder_layers,
             num_decoder_layers=num_decoder_layers,
             dim_feedforward=dim_feedforward,
+            batch_first=True
         )
         self.fc = nn.Linear(d_model, 1)
 
-    def forward(self, src, tgt):
+    def forward(self, src, tgt, tgt_mask=None, src_key_padding_mask=None, tgt_key_padding_mask=None, memory_key_padding_mask=None):
         """
         src: Tensor, shape [batch_size, seq_len, d_model]
         tgt: Tensor, shape [batch_size, seq_len, d_model]
@@ -90,9 +94,73 @@ class PrivTransformer(nn.Module):
         # pass sequence of hiddenstates as embeddings]
         src, _ = self.embedding(src)
         tgt, _ = self.embedding(tgt)
-        output = self.transformer(src, tgt)
+        src = self.pos_encoder(src)
+        tgt = self.pos_encoder(tgt)
+        output = self.transformer(src, tgt, tgt_mask=None, src_key_padding_mask=None, tgt_key_padding_mask=None, memory_key_padding_mask=None)
         output = self.fc(output)
         return output
+
+
+class NNTransformer(nn.Module):
+    def __init__(self, d_model, nhead, num_encoder_layers, num_decoder_layers, dim_feedforward, max_len=5000):
+        super(NNTransformer, self).__init__()
+        self.d_model = d_model
+        self.nhead = nhead
+        self.num_encoder_layers = num_encoder_layers
+        self.num_decoder_layers = num_decoder_layers
+        self.dim_feedforward = dim_feedforward
+        self.max_len = max_len
+        self.pos_encoder = PositionalEncoding(d_model)
+
+        self.embedding = nn.Linear(1, d_model)  # Replace LSTM with a simple linear layer
+        self.transformer = nn.Transformer(
+            d_model=d_model,
+            nhead=nhead,
+            num_encoder_layers=num_encoder_layers,
+            num_decoder_layers=num_decoder_layers,
+            dim_feedforward=dim_feedforward,
+            batch_first=True
+        )
+        self.fc = nn.Linear(d_model, 1)
+
+        
+
+    def forward(self, src, tgt, tgt_mask=None, src_key_padding_mask=None, tgt_key_padding_mask=None, memory_key_padding_mask=None):
+        # src and tgt are assumed to be tensors of shape (batch_size, seq_len, 1)
+        src_embedded = self.embedding(src)  # Linear layer replaces LSTM for embedding
+        tgt_embedded = self.embedding(tgt)
+        src_embedded = self.pos_encoder(src_embedded)
+        tgt_embedded = self.pos_encoder(tgt_embedded)
+        output = self.transformer(src_embedded, tgt_embedded, tgt_mask=tgt_mask, src_key_padding_mask=src_key_padding_mask, tgt_key_padding_mask=tgt_key_padding_mask, memory_key_padding_mask=memory_key_padding_mask)
+        output = self.fc(output)  
+        return output
+    
+    def get_tgt_mask(self, size):
+        mask = torch.triu(torch.ones(size, size, device=device), diagonal=1).bool()
+        return mask
+
+    
+
+def predict(model, input_sequence, max_length=511, SOS_token=0.0, EOS_token=-1.0):
+    model.eval()
+    
+    y_input = torch.tensor([[SOS_token]], dtype=torch.float, device=device).unsqueeze(-1)
+    for _ in range(max_length):
+        # Dynamic target mask based on current sequence length
+        tgt_mask = model.get_tgt_mask(y_input.size(1))
+        # Forward pass through the model
+        pred = model(input_sequence, y_input, tgt_mask=tgt_mask)
+   
+        # Extract the last predicted value (considering it's a regression task)
+        next_item = pred[:, -1:, :]  # Keep the last time step and maintain dimensions
+        # Append the predicted value to the sequence
+        y_input = torch.cat((y_input, next_item), dim=1)
+        # Optional: Break if EOS_token is a condition for your use case
+        
+    return y_input.squeeze(-1)  # Adjust shape and move to CPU for compatibility
+
+  
+
 
 class TimeSeriesDataset(Dataset):
    def __init__(self, data, targets):
@@ -107,10 +175,10 @@ class TimeSeriesDataset(Dataset):
        current_target = self.targets[idx]
        return torch.tensor(current_sample, dtype=torch.float), torch.tensor(current_target, dtype=torch.float)
 
-def test_single_model(num_clusters, data_portion, num_files, layers = 256, batch = 16, epoch = 40):
-    spy_files = sorted(glob.glob("C:\\Users\\Leo\\OneDrive\\Dokumente\\Files 2024\\clustering_hp\\Data\\SPY\\*.csv"))[-20:]
+def test_single_model(num_clusters, data_portion, num_files, layers = 256, batch = 16, epoch = 30):
+    spy_files = sorted(glob.glob("C:\\Users\\leo\Documents\\clustering_hp\\data\\SPY\\*.csv"))[-30:]
     date_range = [file.split("\\")[-1].split(".")[0][4:-22] for file in spy_files]
-    files = [f"C:\\Users\\Leo\\OneDrive\\Dokumente\\Files 2024\\clustering_hp\\Data\\AAPL\\AAPL_{date}_34200000_57600000_1_1.csv" for date in date_range]
+    files = [f"C:\\Users\\leo\Documents\\clustering_hp\\data\\AAPL\\AAPL_{date}_34200000_57600000_1_1.csv" for date in date_range]
 
     data_portion = data_portion
     result = np.zeros((len(files),23400))
@@ -146,7 +214,7 @@ def test_single_model(num_clusters, data_portion, num_files, layers = 256, batch
     dataset = TimeSeriesDataset(tensor_X, tensor_y)
     dataloader = DataLoader(dataset, batch_size=batch, shuffle=False)
 
-    transofmer = PrivTransformer(d_model=512, nhead=8, num_decoder_layers=3, num_encoder_layers=3, dim_feedforward=2048)
+    transofmer = NNTransformer(d_model=512, nhead=8, num_decoder_layers=3, num_encoder_layers=3, dim_feedforward=2048)
     criterion = torch.nn.MSELoss()
     optimizer= torch.optim.Adam(transofmer.parameters(), lr=0.00001)
     epochs = epoch
@@ -154,11 +222,11 @@ def test_single_model(num_clusters, data_portion, num_files, layers = 256, batch
     for epoch in range(epoch):
         for clusters, targets in tqdm(dataloader):
             transofmer.zero_grad()
+            tgt_mask = transofmer.get_tgt_mask(targets.shape[1]).to(device)
             clusters = clusters.float().to(device)
             targets = targets.float().to(device)
-            outputs = transofmer(clusters, targets)
+            outputs = transofmer(clusters, targets, tgt_mask=tgt_mask)
             loss = criterion(outputs, targets)
-       
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -171,8 +239,8 @@ def test_single_model(num_clusters, data_portion, num_files, layers = 256, batch
     plt.clf()
     # plot an example sequence
     plt.figure(figsize=(6, 6))
-    plt.plot(targets[0].cpu().detach().numpy(), label='target')
-    plt.plot(outputs[0].cpu().detach().numpy(), label='output')
+    plt.plot(targets[-1].cpu().detach().numpy(), label='target')
+    plt.plot(outputs[-1].cpu().detach().numpy(), label='output')
     plt.show()
     plt.legend()
 
@@ -184,7 +252,7 @@ def test_single_model(num_clusters, data_portion, num_files, layers = 256, batch
     tensor_y = torch.tensor(test_ydf, dtype=torch.float)
     # Create the dataset
     test_dataset = TimeSeriesDataset(tensor_X, tensor_y)
-    test_dataloader = DataLoader(test_dataset, batch_size=32, shuffle=False, drop_last=False)
+    test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False, drop_last=False)
     
     test_losses = []
     transofmer.eval()
@@ -194,11 +262,15 @@ def test_single_model(num_clusters, data_portion, num_files, layers = 256, batch
         for inputs, targets in test_dataloader:
             inputs, targets = inputs.to(device), targets.to(device)
             transofmer.eval()
-            y_pred = transofmer(inputs, targets)
-   
+            # Give model data and get oputout 
+            y_pred = predict(transofmer, inputs, max_length=511, SOS_token=0.0, EOS_token=-1.0)
+            print(y_pred.cpu().detach().numpy().shape)
             test_loss = criterion(y_pred, targets)
             inter_losses.append(test_loss.item())
             idx += 1
+            
+        total = np.sum(inter_losses)
+        print(f"Test Loss: {total}")
         test_losses.append(np.mean(inter_losses))
 
     print(f"Test Loss: {np.mean(inter_losses)}")
@@ -275,7 +347,7 @@ def cluster_transformer(num_clusters, data_portion, num_files, layers = 256, bat
 
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=True)
 
-        model = PrivTransformer(d_model=512, nhead=8, num_decoder_layers=3, num_encoder_layers=3, dim_feedforward=2048)
+        model = LSTMTransformer(d_model=512, nhead=8, num_decoder_layers=3, num_encoder_layers=3, dim_feedforward=2048)
         criterion = torch.nn.MSELoss()
         optimizer= torch.optim.Adam(model.parameters(), lr=0.00001)
         epochs = epoch
@@ -319,7 +391,7 @@ def cluster_transformer(num_clusters, data_portion, num_files, layers = 256, bat
         for inputs, targets in tqdm(test_dataloader):
             inputs, targets = inputs.to(device), targets.to(device)
             model.eval()
-            y_pred = model(inputs, targets)
+            y_pred = model(inputs)
             test_loss = torch.sqrt(torch.mean((y_pred - targets)**2))
             lossess.append(test_loss.item())
             idx += 1
@@ -358,7 +430,7 @@ def cluster_transformer(num_clusters, data_portion, num_files, layers = 256, bat
                     for model in cluster_models:
                         model.eval()
                         model.to(device)
-                        y_pred = model(inputs, targets)
+                        y_pred = model(inputs)
                         test_loss = torch.sqrt(torch.mean((y_pred - targets)**2))
                         out.append(y_pred.cpu().detach().numpy())
                         lossess_cluster.append(test_loss.item())
@@ -390,6 +462,6 @@ if __name__ == "__main__":
     data_portion = int(sys.argv[2])
     num_files = int(sys.argv[3])
     print(test_single_model(num_clusters, data_portion, num_files))
-    print(cluster_transformer(num_clusters, data_portion, num_files))
+    #print(cluster_transformer(num_clusters, data_portion, num_files))
     
     print("done")

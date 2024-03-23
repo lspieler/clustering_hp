@@ -52,3 +52,18 @@ def smoothing(series, factor = 0.9):
     for i in range(1, len(series)):
         smoothed[i] = factor * smoothed[i-1] + (1 - factor) * series[i]
     return smoothed
+
+
+def fft_transform(series, detrend = True, dc_component = True):
+    # Detrend data and remove mean
+    if detrend:
+        series = signal.detrend(series - np.mean(series))
+
+    # Apply FFT to both time series
+    freq = np.fft.fft(series)
+
+    if not dc_component:
+        # Remove the DC component
+        freq[0] = 0
+    
+    return freq
